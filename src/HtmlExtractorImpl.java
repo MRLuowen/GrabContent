@@ -11,6 +11,8 @@ import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
@@ -27,6 +29,8 @@ import java.io.IOException;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
+
+import javax.swing.text.html.HTMLDocument.Iterator;
 
 /**
  * html extractor.
@@ -161,7 +165,7 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 	String[] titles = new String[len];
 	titles[0] = temptitle;
 
-	print_test(blocks);
+	//print_test(blocks);
 	// 提取文章页信息
 	extractMainText(blocks, titles, 4);
 
@@ -276,8 +280,17 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 	} else {
 	    is = connection.getInputStream();
 	}
+	String streamEncoding=null;
 	byte[] data = streamToData(is);
-	String streamEncoding = detectEncoding(data);
+	String strtemp=connection.getContentType();
+	int m = strtemp.indexOf("charset=");
+        if (m != -1) {
+            streamEncoding = strtemp.substring(m + 8).replace("]", "");
+        }
+	System.out.println("streamEncoding is"+streamEncoding);
+	if(streamEncoding == null){
+	    streamEncoding = detectEncoding(data);
+	}
 	if (data == null || streamEncoding == null) {
 	    System.out.println("streamEncoding is null");
 	    return "";

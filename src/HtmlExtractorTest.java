@@ -11,7 +11,7 @@ public class HtmlExtractorTest {
     public static void main(String[] args) {
     	HtmlExtractorImpl e = new HtmlExtractorImpl();
         HtmlResult r = e
-                .extractContent("http://blog.sina.com.cn/u/2935150677");
+                .extractContent("http://www.oudianfm.com/");
         if(r.getState() == "ok")
         {
         	System.out.println("时间是："+r.getDate());
