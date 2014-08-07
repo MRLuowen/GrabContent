@@ -84,19 +84,22 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 	 */
 	// 直接赋值
 	// String str;
-	 //str = "<meta name="description" content=";
+	//str = "<meta name="description" content=";
          str = str.toLowerCase();
-	 str = str.replace("\t", ""); 
-	 str = str.replace("\r", "\n"); 
-	 str = str.replace("<br>", "\n");
-	 str = str.replace("<br />", "\n");
-	 str =str.replace("</p>", "</p>\n"); 
-	 str =str.replace("</span>","</span>\n"); 
-	 if (str != null) { 
-	     p = Pattern.compile("\n\n");
-	     m = p.matcher(str); 
-	     str = m.replaceAll("\n"); // 去掉制表符和换行符 }
-	 }
+	 str = str.replace("\r", "");
+	 str = str.replace("\n", ""); 
+	 if(str!=null)  //根据网页的视觉呈现来添加回车换行符号
+	 {
+	     int i=1;
+	     StringBuilder sb=new StringBuilder(str);
+	     p = Pattern.compile("(<br>|<br />|</p>|</tr>|</table>|</form>|</div>|</head>)\\s*");
+	     m = p.matcher(str);
+	     while (m.find()) {
+		 sb.insert(m.end()+i-1, "\n");
+		 i++;
+	     }
+             str=sb.toString();
+	  }
 	
 	if (str != null) {
 	    p = Pattern.compile(".*<title>(.*?)</title>.*");
@@ -113,32 +116,35 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 	}
 	if (str != null) // 去除html的转义字符
 	{
-	    p = Pattern.compile("&[a-z]*;");
+	    p = Pattern.compile("&[a-z]*;?");
 	    m = p.matcher(str);
 	    str = m.replaceAll("");
 	}
+	
 	if (str != null) // 去除script代码
 	{
 	    p = Pattern.compile("(?is)<script[^>]*?>.*?<\\/script>");
 	    m = p.matcher(str);
 	    str = m.replaceAll("");
 	}
-
-	if(str!=null)
+	
+	if(str!=null)  //根据文本逻辑加上换行符
 	{
 	    int i=1;
 	    StringBuilder sb=new StringBuilder(str);
-	    p = Pattern.compile("</[a-z0-9]+>[^\n]");
+	    p = Pattern.compile("(</[a-z0-9]+>\\s*)+[^\n]");
 	    m = p.matcher(str);
 	    while (m.find()) {
-		   sb.insert(m.end()+i-2, "\n");
-		   i++;
+	           if(sb.charAt(m.end()+i-3)!='\n')
+	           {
+	               sb.insert(m.end()+i-2, "\n");
+		       i++;
+	           } 
 		}
 	    str=sb.toString();
 	}
-        
 	format_html = str;
-	//System.out.println(format_html);
+	
 	if (str != null) // 去除所有不带换行的标签
 	{
 	    p = Pattern.compile("<[^>\n]*>");
@@ -152,9 +158,8 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 	    str = m.replaceAll("\n");
 	}
 	
-	//System.out.println(str);
+	System.out.println(str);
 	String[] str_blocks = str.split("\n");
-        
 	List<String> blocks = new ArrayList<String>();
 	for (int i = 0; i < str_blocks.length; i++) {
 	    blocks.add(str_blocks[i].trim());
@@ -287,7 +292,7 @@ public class HtmlExtractorImpl implements HtmlExtractor {
         if (m != -1) {
             streamEncoding = strtemp.substring(m + 8).replace("]", "");
         }
-	System.out.println("streamEncoding is"+streamEncoding);
+	//System.out.println("streamEncoding is "+streamEncoding);
 	if(streamEncoding == null){
 	    streamEncoding = detectEncoding(data);
 	}
