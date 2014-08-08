@@ -7,12 +7,10 @@
  */
 public class Block {
     private int start;
-
     private int end;
-
     private String content;
-    
     private int length;
+    
     public int getlength()
     {
     	return length;

@@ -22,7 +22,6 @@ public class HtmlResult implements Serializable {
     private String url;
     private String title;
     private String text;
-
     public HtmlResult() {
     	keywords = new ArrayList<String>();
     }
