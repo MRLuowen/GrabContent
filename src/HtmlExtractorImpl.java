@@ -94,10 +94,25 @@ public class HtmlExtractorImpl implements HtmlExtractor {
              Pattern p2=Pattern.compile("-->");
              Matcher m2=p2.matcher(str);
              StringBuilder sb=new StringBuilder(str);
+             int start=0,end=0;
 	     while(m.find()&& m2.find())
 	     {
-		 sb.delete(m.start()-i, m2.end()-i);
+		 if(m.start()>end && m2.end()>m.start())
+		 {
+		     start=m.start();
+		     end=m2.end();
+		 }
+		 else if(m.start()<end)
+		 {
+		     m.find();
+		 }
+		 else if(m2.end()<m.start())
+		 {
+		     m2.find();
+		 }
+		 sb.delete(start-i, end-i);
 		 i=i+(m2.end()-m.start());
+		 
 	     }
 	     str=sb.toString();
 	 }
@@ -112,13 +127,13 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 		 sb.insert(m.end()+i-1, "\n");
 		 i++;
 	     }
-	     Pattern p2=Pattern.compile("<h1>");
+	     Pattern p2=Pattern.compile("<h1>|<h2>");
 	     Matcher m2=p2.matcher(sb.toString());
 	     i=0;
 	     while(m2.find())
 	     {
-		 sb.insert(m2.end()+i-5, "\n");
-		 i++;
+		 sb.insert(m2.end()+i-4, "\n\n");
+		 i+=2;
 	     }
              str=sb.toString();
 	  }
@@ -156,17 +171,30 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 	    StringBuilder sb=new StringBuilder(str);
 	    p = Pattern.compile("(</[a-z0-9]+>\\s*)+[^\n]");
 	    m = p.matcher(str);
-	    while (m.find()) {
-	           if(sb.charAt(m.end()+i-3)!='\n')
-	           {
-	               sb.insert(m.end()+i-2, "\n");
-		       i++;
-	           } 
-		}
+	    while (m.find()) 
+	    {
+	        if(sb.charAt(m.end()+i-3)!='\n')
+	        {
+	            sb.insert(m.end()+i-2, "\n");
+		    i++;
+	        } 
+	    }
+	    p=Pattern.compile("</span>|</strong>|</b>");
+	    m=p.matcher(sb.toString());
+	    i=0;
+            while(m.find())
+            {
+        	if(m.end()!=sb.length() && sb.charAt(m.end()-i) == '\n')
+        	{
+        	    sb.deleteCharAt(m.end()-i);
+        	    i++;
+        	}
+        	
+            }
 	    str=sb.toString();
 	}
 	format_html = str;
-	System.out.println(str);
+	//System.out.println(str);
 	
 	String[] html_blocks = str.split("\n");
 	List<String> tag_blocks = new ArrayList<String>();
@@ -179,7 +207,7 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 	    m = p.matcher(str);
 	    str = m.replaceAll("");
 	}
-	if (str != null) // 去除所有带换行的标签
+	if (!str.isEmpty()) // 去除所有带换行的标签
 	{
 	    p = Pattern.compile("<[^>\n]*\n|[^<\n]*>\n");
 	    m = p.matcher(str);
@@ -195,14 +223,20 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 	for (int i = 0; i < str_blocks.length; i++) {
 	    word_blocks.add(str_blocks[i].trim());
 	}
-	//print_test(word_blocks);
-	//System.exit(0);
+	
+	if(word_blocks.isEmpty())
+	{
+	    System.out.println("提取之后的文本为空！");
+	    return result;
+	}
+	print_test(word_blocks);
 	int em_raw=0;
 	for(int i=0;i<word_blocks.size();i++)
 	{
 	    if(word_blocks.get(i).length()==0)
 		em_raw++;
 	}
+	//System.out.println(word_blocks.size()+"***"+em_raw);
 	int k=em_raw/(word_blocks.size()-em_raw)+2;
     
 	List<ContentBlock> contents = new ArrayList<ContentBlock>();
@@ -248,7 +282,7 @@ public class HtmlExtractorImpl implements HtmlExtractor {
         	contents.get(i).weight+=5;
             }
             //行和链接比
-            if((float)(contents.get(i).getEnd()-contents.get(i).getStart()-contents.get(i).getemptyrow())/contents.get(i).getlink()>2)
+            if((float)(contents.get(i).getEnd()-contents.get(i).getStart()-contents.get(i).getemptyrow())/contents.get(i).getlink()>2.5)
         	contents.get(i).weight+=2;
             else
         	contents.get(i).weight-=50;
@@ -270,7 +304,7 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 	    {
 	        longst = i;   
 	    }
-	    if(DEBUG)
+	    //if(DEBUG)
 	        System.out.println("权值是***"+contents.get(i).getweight());
 	}
 	if(contents.get(longst).getweight()<80)
@@ -342,6 +376,7 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 		    break;
 		}
 	    }
+	    Get_Detail(contents.get(longst),temp_result,blocks,tag_blocks);
 	    StringBuffer currentText= new StringBuffer();
 	    for (int count = contents.get(longst).getStart(); count <= contents.get(longst).getEnd(); count++) 
 	    {
@@ -353,72 +388,25 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 	    }
 	    temp_result.setText(currentText.toString());
 	    temp_result.setState("ok");
-	    Get_Detail(contents.get(longst).getStart(),contents.get(longst).getEnd(),temp_result,blocks,tag_blocks);
+	    
 	    return temp_result;
 	}
     }
-    private void Get_Detail(int head,int end,HtmlResult result,List<String> blocks,List<String> tag_blocks)
+    private void Get_Detail(ContentBlock longst,HtmlResult result,List<String> blocks,List<String> tag_blocks)
     {
-	int tt=head;
+	int tt=longst.getStart();
 	int raw=0;
 	int maxline=99999;
-	while(tt >=0 && raw <8)
+	int minline=longst.getStart();
+	while(tt >=0 && raw <15)
 	{
-	    while(blocks.get(tt).length()==0)
+	    while(tt >=0 && blocks.get(tt).length()<=1)
 		tt--;
 	    raw++;
-	    String temptt=blocks.get(tt);
-	    p = Pattern.compile("[0-9]{2,4}[年/-][0-9]{1,2}[月/-][0-9]{1,4}日?");
-	    m = p.matcher(temptt);
-	    while (m.find()) {
-	        result.setDate(m.group());
-	        if(tt<maxline)
-	            maxline=tt;
-	        break;
-	    }
-	    p = Pattern.compile("(来源|来源于)[:：\\s]([^\\s]*)\\s*");
-	    m = p.matcher(temptt);
-	    while (m.find()) {
-	        result.setFrom(m.group(2));
-	        if(tt<maxline && maxline- tt<3)
-	            maxline=tt;
-	        break;
-	    }
-	    p = Pattern.compile("(笔者|编辑|作者|记者)[:：\\s]([\u4e00-\u9fa5]*)\\s*");
-	    m = p.matcher(temptt);
-	    while (m.find()) {
-	        result.setAuth(m.group(2));
-	        if(tt<maxline && maxline- tt<3)
-                    maxline=tt;
-                break;
-	    }
-	    p = Pattern.compile("[\u4e00-\u9fa5]+(公司|网)$");
-	    m = p.matcher(temptt);
-	    while (m.find()) {
-	        result.setCompany(m.group());
-	        break;
-	    }
-	    p = Pattern.compile("(关键字|关键词)[:：\\s]([\u4e00-\u9fa5]*)");
-	    m = p.matcher(temptt);
-	    while (m.find()) {
-		  if(tt<maxline && maxline- tt<3)
-	                    maxline=tt;
-	        result.addkeywords(m.group(1));
-	        break;
-	    }
-	    tt--;
-	}
-	if(result.getDate()==null || result.getAuth()==null)
-	{
-	    raw=0;
-	    tt=head+1;
-	    while(tt <end && raw <8)
-            {
-		while (blocks.get(tt).length() == 0)
-		    tt++;
-		raw++;
+	    if (tt >= 0) 
+	    {
 		String temptt = blocks.get(tt);
-		p = Pattern.compile("[0-9]{2,4}[年/-][0-9]{1,2}[月/-][0-9]{1,4}[日]*");
+		p = Pattern.compile("[0-9]{2,4}[年/-][0-9]{1,2}[月/-][0-9]{1,4}[日]");
 		m = p.matcher(temptt);
 		while (m.find()) {
 		    result.setDate(m.group());
@@ -434,7 +422,7 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 			maxline = tt;
 		    break;
 		}
-		p = Pattern.compile("(笔者|编辑|作者|记者)[:：\\s]([\u4e00-\u9fa5]*)\\s+");
+		p = Pattern.compile("(笔者|编辑|作者|记者)[:：\\s]([^\"“]*)\\s*");
 		m = p.matcher(temptt);
 		while (m.find()) {
 		    result.setAuth(m.group(2));
@@ -456,20 +444,98 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 		    result.addkeywords(m.group(1));
 		    break;
 		}
+		tt--;
+	    }
+	}
+	if(result.getDate()==null)
+	{
+	    raw=0;
+	    tt=longst.getStart()+1;
+	    while(tt <longst.getEnd() && raw <8)
+            {
+		while (tt <longst.getEnd() && blocks.get(tt).length() == 0)
+		    tt++;
+		raw++;
+		String temptt = blocks.get(tt);
+		if(result.getDate()==null)
+		{
+		    p = Pattern.compile("[0-9]{2,4}[年/-][0-9]{1,2}[月/-][0-9]{1,4}[日]*");
+		    m = p.matcher(temptt);
+		    while (m.find()) {
+			result.setDate(m.group());
+			if (tt < maxline)
+			   maxline = tt;
+			if (tt > minline && tt <longst.getlongst_row())
+			    minline = tt+1;
+			break;
+		   }
+		}
+		p = Pattern.compile("(来源|来源于)[:：]\\s?([^\\s]*)\\s*");
+		m = p.matcher(temptt);
+		while (m.find()) {
+		    result.setFrom(m.group(2));
+		    if (tt < maxline)
+			maxline = tt;
+		    if (tt > minline && tt <longst.getlongst_row())
+			minline = tt+1;
+		    break;
+		}
+		p = Pattern.compile("(笔者|编辑|作者|记者)[:：\\s]([^\"“]+)\\s+");
+		m = p.matcher(temptt);
+		while (m.find()) {
+		    result.setAuth(m.group(2));
+		    if (tt < maxline)
+			maxline = tt;
+		    if (tt > minline && tt <longst.getlongst_row())
+			minline = tt+1;
+		    break;
+		}
+		p = Pattern.compile("[\u4e00-\u9fa5]+(公司|网)$");
+		m = p.matcher(temptt);
+		while (m.find()) {
+		    result.setCompany(m.group());
+		    break;
+		}
+		p = Pattern.compile("(关键字|关键词)[:：\\s]([\u4e00-\u9fa5]*)");
+		m = p.matcher(temptt);
+		while (m.find()) {
+		    if (tt < maxline)
+			maxline = tt;
+		    if (tt > minline && tt <longst.getlongst_row())
+			minline = tt+1;
+		    result.addkeywords(m.group(1));
+		    break;
+		}
+		if(temptt.contains("摘要") && tt >minline && tt<longst.getlongst_row())
+		{
+		    minline = tt;
+		}
 		tt++;
 	    }
 	}
+	
 	if(maxline != 99999)
         {
 	   int j=maxline-1;
 	   int r=0;
 	   String[] titles=new String[3];
 	   int[] weight={100,100,100};
+	   Pattern pt2=Pattern.compile("<h1>");
+           Matcher mt2;
 	   while(j>=0 && r<3)
 	   {
-	       while(blocks.get(j).length()==0)
+	       while(j>=0 &&blocks.get(j).length()<=4)
 		   j--;
-	       titles[r]=blocks.get(j);
+	       if(j>=0)
+	       {
+		   titles[r]=blocks.get(j);
+		   mt2=pt2.matcher(tag_blocks.get(j));
+		   if(mt2.find())
+		   {
+		       weight[r]+=10;
+		   }
+	       }
+	       
 	       r++;
 	       j--;
 	   }
@@ -484,22 +550,22 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 	       {
 	           weight[i] -= 10;
 	       }
-	       if( titles[i].contains("http://www"))
+	       if( titles[i].contains("http://www")||titles[i].contains("链接"))
 	       {
 	           weight[i] -= 10;
 	       }
-	       if (titles[i].contains("位置") || titles[i].contains("新闻")) 
+	       if (titles[i].contains("位置") || titles[i].contains("新闻")||titles[i].contains("网")|| titles[i].contains("报")||titles[i].contains(">")) 
 	       {
-		   weight[i] -= 2;
+		   weight[i] -= 4;
 	       }
 	       if (titles[i].contains("标题")||titles[i].contains("题目")) 
 	       {
 	           weight[i] += 5;	
 	       }
-	       p = Pattern.compile("[\\._|,:：，、]+");
+	       p = Pattern.compile("[\\._|,:：，、0-9a-z]");
 	       m = p.matcher(titles[i]);
 	       while (m.find()) {
-	           weight[i] -= 2;
+	           weight[i] -= 1;
 	       }
 	   }
 	   int max = 0;
@@ -509,38 +575,44 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 	        if (weight[m] > weight[max])
 	        max = m;
 	   }
-	   if(weight[max]>=95)
+	   if(weight[max]>96)
 	       result.setTitle(titles[max]);
 	}
 	if(result.getDate()==null)
 	{
 	    raw=0;
-	    for(int mm=end+1;mm<blocks.size() && raw<3;mm++)
+	    for(int mm=longst.getEnd();mm<blocks.size() && raw<3;mm++)
 	    {
-		while (blocks.get(mm).length() == 0)
+		while (mm<blocks.size() && blocks.get(mm).length() == 0)
 		    mm++;
 		raw++;
-		String temptt = blocks.get(mm);
-		p = Pattern.compile("[0-9]{2,4}[年/-][0-9]{1,2}[月/-][0-9]{1,4}[日]*");
-		m = p.matcher(temptt);
-		while (m.find()) {
-		    result.setDate(m.group());
-		    break;
-		}
-		p = Pattern.compile("(来源|来源于)[:：\\s]([^\\s]*)\\s*");
-		m = p.matcher(temptt);
-		while (m.find()) {
-		    result.setFrom(m.group(2));
-		    break;
-		}
-		p = Pattern.compile("(笔者|编辑|作者|记者)[:：\\s]([\u4e00-\u9fa5]*)\\s+");
-		m = p.matcher(temptt);
-		while (m.find()) {
-		    result.setAuth(m.group(2));
-		    break;
+		if(mm!=blocks.size())
+		{
+		    String temptt = blocks.get(mm);
+		    p = Pattern
+			    .compile("[0-9]{2,4}[年/-][0-9]{1,2}[月/-][0-9]{1,4}[日]*");
+		    m = p.matcher(temptt);
+		    while (m.find()) {
+			result.setDate(m.group());
+			break;
+		    }
+		    p = Pattern.compile("(来源|来源于)[:：\\s]([^\\s]*)\\s*");
+		    m = p.matcher(temptt);
+		    while (m.find()) {
+			result.setFrom(m.group(2));
+			break;
+		    }
+		    p = Pattern.compile("(笔者|编辑|作者|记者)[:：\\s]([\u4e00-\u9fa5]*)\\s+");
+		    m = p.matcher(temptt);
+		    while (m.find()) {
+			result.setAuth(m.group(2));
+			break;
+		    }
 		}
 	    }
 	}
+	System.out.println("maxline"+maxline+"minline+"+minline+"longstline"+longst.getlongst_row());
+	longst.setStart(minline);
     }
     private void Get_Content(List<ContentBlock> contents,List<String> blocks,List<String> tag_blocks,int k)
     {
@@ -592,19 +664,26 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 		}
 		if(start_judge==0)
 		{
-		    if(candidates.get(i).getlength()<=2)
+		    if(candidates.get(i).getlength()<=4)
 		    {
 			end=i;
 			start_judge=1;
 			if(temp!=null)
 			{
-
+                            if(start==96)
+                        	DEBUG=true;
+                            else
+                        	DEBUG=false;
 			    temp.setStart(start);
 			    temp.setEnd(end-1);
 			    int templen=0;
+			    int templonst=start+k-1;
 			    for (int j = start+k-1; j <=end-1; j++) {
 				templen = templen + blocks.get(j).length();
+				if(blocks.get(j).length()>blocks.get(templonst).length())
+				    templonst=j;
 			    }
+			    temp.setlongst_row(templonst);
 			    temp.setlength(templen);
 			    Get_Articleweight(temp,blocks,tag_blocks);
 			    contents.add(temp);
@@ -621,9 +700,13 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 			    temp.setStart(start);
 			    temp.setEnd(i);
 			    int templen=0;
-			    for (int j = start+k-1; j <=i; j++) {
+			    int templonst=start+k-1;
+			    for (int j = start+k-1; j <=end-1; j++) {
 				templen = templen + blocks.get(j).length();
+				if(blocks.get(j).length()>blocks.get(templonst).length())
+				    templonst=j;
 			    }
+			    temp.setlongst_row(templonst);
 			    temp.setlength(templen);
 			    Get_Articleweight(temp,blocks,tag_blocks);
 			    contents.add(temp);
@@ -643,16 +726,18 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 	Matcher mt;
 	Pattern pt2=Pattern.compile("<a\\s*[^>]*>");
 	Matcher mt2;
-	Pattern pt3=Pattern.compile("(电话|手机|联系人|地址|传真|mail|邮编|邮箱|Tel|Fax|版权|邮件):|：");
+	Pattern pt3=Pattern.compile("(电话|手机|联系人|地址|传真|mail|邮编|邮箱|Tel|Fax|版权|邮件)\\s?([:：])");
 	Matcher mt3;
-	Pattern pt4=Pattern.compile("京\\s*(ICP|icp)\\s*证");
+	Pattern pt4=Pattern.compile("[京浙]\\s*icp\\s*[证备]?");
 	Matcher mt4;
+	Pattern pt5=Pattern.compile("[\u4e00-\u9fa5]|[\\x21-\\x7E]");
+	Matcher mt5;
 	int link_num=0;
 	int empty_row=0;
 	int temp_weight=temp.getweight();
 	for(int i=temp.getStart();i<=temp.getEnd();i++) //有标点符号权值加2
 	{
-	    if(word_blocks.get(i).length()!=0)
+	    if(word_blocks.get(i).length()>=2)
 	    {
 		mt=pt.matcher(word_blocks.get(i));
 		while(mt.find())
@@ -666,7 +751,7 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 		{
 		    if(DEBUG)
 			    System.out.println("有联系方式，权值减5");
-		    temp_weight-=5;
+		    temp_weight-=8;
 		    
 		}
 		mt4=pt4.matcher(word_blocks.get(i));
@@ -674,8 +759,17 @@ public class HtmlExtractorImpl implements HtmlExtractor {
 		{
 		    if(DEBUG)
 			    System.out.println("含有京证，可能是尾部，权值减15");
-		    temp_weight-=15;
+		    temp_weight-=50;
 		}
+		mt5=pt5.matcher(word_blocks.get(i));
+		int utfword=0;
+		while(mt5.find())
+		{
+		    utfword++;
+		}
+		int temprow=temp.getEnd()-temp.getStart()-temp.getemptyrow();
+		if(utfword!=0)
+		   temp_weight-=((word_blocks.get(i).length()-utfword)*80/temprow/utfword);
 	    }
 	    else{
 		empty_row++;

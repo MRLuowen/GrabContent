@@ -3,6 +3,15 @@ public class ContentBlock extends Block {
     public int weight=100;
     private int link_num=0;
     private int empty_row;
+    private int longst_row;
+    public int getlongst_row()
+    {
+	return longst_row;
+    }
+    public void setlongst_row(int a)
+    {
+	this.longst_row=a;
+    }
     public int getemptyrow()
     {
 	return empty_row;
